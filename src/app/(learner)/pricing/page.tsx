@@ -8,6 +8,7 @@ export const metadata: Metadata = {
 
 const PLANS = [
   {
+    
     name: 'Free',
     price: 0,
     description: 'Get started with the fundamentals — no credit card required.',
