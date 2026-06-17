@@ -1,47 +1,46 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { MOCK_COURSES, getCourseBySlug, getLessonBySlug, formatDuration } from '@/lib/mockData'
+import type { Course } from '@/types'
+import { formatDuration } from '@/lib/mockData'
 import LessonSidebar from '@/components/learner/LessonSidebar'
 import CodePlayground from '@/components/learner/CodePlayground'
 import CompleteButton from './CompleteButton'
 
-export async function generateStaticParams() {
-  const params: { slug: string; lessonSlug: string }[] = []
-  for (const course of MOCK_COURSES) {
-    for (const section of course.sections) {
-      for (const lesson of section.lessons) {
-        params.push({ slug: course.slug, lessonSlug: lesson.slug })
-      }
-    }
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1'
+
+async function getCourse(slug: string): Promise<Course | null> {
+  try {
+    const res = await fetch(`${API}/courses/${slug}`, { cache: 'no-store' })
+    if (!res.ok) return null
+    const json = await res.json()
+    return json.data.course
+  } catch {
+    return null
   }
-  return params
 }
 
 export async function generateMetadata(props: {
   params: Promise<{ slug: string; lessonSlug: string }>
 }): Promise<Metadata> {
   const { slug, lessonSlug } = await props.params
-  const course = getCourseBySlug(slug)
+  const course = await getCourse(slug)
   if (!course) return {}
-  const lesson = getLessonBySlug(course, lessonSlug)
-  return {
-    title: lesson ? `${lesson.title} — ${course.title}` : course.title,
-  }
+  const lesson = course.sections.flatMap((s) => s.lessons).find((l) => l.slug === lessonSlug)
+  return { title: lesson ? `${lesson.title} — ${course.title}` : course.title }
 }
 
 export default async function LessonPage(props: {
   params: Promise<{ slug: string; lessonSlug: string }>
 }) {
   const { slug, lessonSlug } = await props.params
-  const course = getCourseBySlug(slug)
+  const course = await getCourse(slug)
   if (!course) notFound()
 
-  const lesson = getLessonBySlug(course, lessonSlug)
+  const allLessons = course.sections.flatMap((s) => s.lessons)
+  const lesson = allLessons.find((l) => l.slug === lessonSlug)
   if (!lesson) notFound()
 
-  // Find prev/next lesson
-  const allLessons = course.sections.flatMap((s) => s.lessons)
   const currentIdx = allLessons.findIndex((l) => l.slug === lessonSlug)
   const prevLesson = currentIdx > 0 ? allLessons[currentIdx - 1] : null
   const nextLesson = currentIdx < allLessons.length - 1 ? allLessons[currentIdx + 1] : null
@@ -50,14 +49,11 @@ export default async function LessonPage(props: {
 
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
-      {/* Sidebar */}
       <div className="hidden w-72 shrink-0 border-r border-zinc-800 bg-zinc-950 lg:block">
         <LessonSidebar course={course} currentSlug={lessonSlug} />
       </div>
 
-      {/* Main lesson content */}
       <div className="flex-1 min-w-0">
-        {/* Lesson header */}
         <div className="border-b border-zinc-800 bg-zinc-950 px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="min-w-0">
@@ -76,9 +72,7 @@ export default async function LessonPage(props: {
           </div>
         </div>
 
-        {/* Lesson body */}
         <div className="px-6 py-8 max-w-3xl">
-          {/* Lesson type badge */}
           <div className="mb-6 flex items-center gap-3">
             <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
               lesson.type === 'challenge'
@@ -92,26 +86,24 @@ export default async function LessonPage(props: {
             </span>
           </div>
 
-          {/* Content placeholder — will be MDX from Content Service */}
           <div className="prose prose-invert prose-zinc max-w-none">
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-4 text-sm leading-relaxed text-zinc-400">
-              <p className="text-zinc-300 font-medium">
-                {lesson.title}
-              </p>
-              <p>
-                This lesson content is served from the <strong className="text-zinc-300">Content Service</strong> as MDX.
-                Connect the backend to load the full lesson including text, diagrams, embedded challenges, and code examples.
-              </p>
-              <p>
-                The lesson covers core concepts, includes interactive examples, and ends with a practical challenge to test your understanding.
-              </p>
-              <div className="rounded-lg border border-indigo-500/20 bg-indigo-500/5 px-4 py-3 text-indigo-300 text-xs">
-                💡 <strong>Key concept:</strong> Understanding this lesson is foundational for everything that follows in the course.
+            {lesson.content ? (
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 text-sm leading-relaxed text-zinc-400 whitespace-pre-wrap">
+                {lesson.content}
               </div>
-            </div>
+            ) : (
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-4 text-sm leading-relaxed text-zinc-400">
+                <p className="text-zinc-300 font-medium">{lesson.title}</p>
+                <p>
+                  This lesson covers core concepts with interactive examples and a practical challenge.
+                </p>
+                <div className="rounded-lg border border-indigo-500/20 bg-indigo-500/5 px-4 py-3 text-indigo-300 text-xs">
+                  💡 <strong>Key concept:</strong> Understanding this lesson is foundational for everything that follows.
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Code playground */}
           {hasCode && (
             <div className="mt-8">
               <h2 className="text-base font-semibold text-zinc-50 mb-3">
@@ -124,7 +116,6 @@ export default async function LessonPage(props: {
             </div>
           )}
 
-          {/* Prev/Next navigation */}
           <div className="mt-10 flex items-center justify-between border-t border-zinc-800 pt-6">
             {prevLesson ? (
               <Link

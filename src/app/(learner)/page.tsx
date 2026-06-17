@@ -1,12 +1,14 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import CourseCard from '@/components/learner/CourseCard'
-import { MOCK_COURSES, MOCK_LEARNING_PATHS } from '@/lib/mockData'
+import type { Course } from '@/types'
 
 export const metadata: Metadata = {
   title: 'CodeCranium — Learn to code, build real things',
   description: 'Interactive coding courses with an in-browser playground. Master JavaScript, React, Python, Go, and Rust.',
 }
+
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1'
 
 const STATS = [
   { value: '50,000+', label: 'Active learners' },
@@ -38,9 +40,36 @@ const WHY_ITEMS = [
   },
 ]
 
-export default function HomePage() {
-  const featuredCourses = MOCK_COURSES.slice(0, 4)
-  const freeCourses = MOCK_COURSES.filter((c) => c.price === 0)
+interface RawPath {
+  id: string
+  slug: string
+  title: string
+  description: string
+  courseIds: string[]
+  difficulty: string
+  totalHours: number
+  icon: string
+  gradient: string
+}
+
+async function getHomeData() {
+  try {
+    const [coursesRes, pathsRes] = await Promise.all([
+      fetch(`${API}/courses?limit=50`, { cache: 'no-store' }),
+      fetch(`${API}/learning-paths`, { cache: 'no-store' }),
+    ])
+    const courses: Course[] = coursesRes.ok ? (await coursesRes.json()).data.courses : []
+    const paths: RawPath[] = pathsRes.ok ? (await pathsRes.json()).data.paths : []
+    return { courses, paths }
+  } catch {
+    return { courses: [], paths: [] }
+  }
+}
+
+export default async function HomePage() {
+  const { courses, paths } = await getHomeData()
+  const featuredCourses = courses.slice(0, 4)
+  const freeCourses = courses.filter((c) => c.price === 0)
 
   return (
     <div>
@@ -77,7 +106,6 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {/* Stats */}
           <div className="mt-16 grid grid-cols-2 gap-4 sm:grid-cols-4">
             {STATS.map((s) => (
               <div key={s.label} className="rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-4">
@@ -117,7 +145,7 @@ export default function HomePage() {
             <p className="mt-1 text-zinc-500 text-sm">Structured curriculum to take you from zero to employed</p>
           </div>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {MOCK_LEARNING_PATHS.map((path) => (
+            {paths.map((path) => (
               <Link
                 key={path.id}
                 href={`/learning-paths#${path.slug}`}
@@ -129,7 +157,7 @@ export default function HomePage() {
                 <h3 className="font-semibold text-zinc-50 group-hover:text-indigo-300 transition">{path.title}</h3>
                 <p className="mt-1.5 text-xs text-zinc-500 leading-relaxed line-clamp-2">{path.description}</p>
                 <div className="mt-4 flex items-center gap-3 text-xs text-zinc-600">
-                  <span>{path.courseIds.length} courses</span>
+                  <span>{(path.courseIds ?? []).length} courses</span>
                   <span>·</span>
                   <span>{path.totalHours}h total</span>
                   <span>·</span>
@@ -142,21 +170,23 @@ export default function HomePage() {
       </section>
 
       {/* Free courses */}
-      <section className="border-b border-zinc-800 px-4 py-16 sm:px-6">
-        <div className="mx-auto max-w-7xl">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h2 className="text-2xl font-bold text-zinc-50">Start for free</h2>
-              <p className="mt-1 text-zinc-500 text-sm">No credit card required</p>
+      {freeCourses.length > 0 && (
+        <section className="border-b border-zinc-800 px-4 py-16 sm:px-6">
+          <div className="mx-auto max-w-7xl">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="text-2xl font-bold text-zinc-50">Start for free</h2>
+                <p className="mt-1 text-zinc-500 text-sm">No credit card required</p>
+              </div>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {freeCourses.map((course) => (
+                <CourseCard key={course.id} course={course} />
+              ))}
             </div>
           </div>
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {freeCourses.map((course) => (
-              <CourseCard key={course.id} course={course} />
-            ))}
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Why CodeCranium */}
       <section className="px-4 py-16 sm:px-6">

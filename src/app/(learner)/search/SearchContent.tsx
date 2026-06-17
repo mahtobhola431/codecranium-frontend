@@ -1,25 +1,25 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import CourseCard from '@/components/learner/CourseCard'
-import { MOCK_COURSES } from '@/lib/mockData'
+import type { Course } from '@/types'
+import api from '@/lib/api'
 
 export default function SearchContent() {
   const searchParams = useSearchParams()
   const initialQ = searchParams.get('q') ?? ''
   const [query, setQuery] = useState(initialQ)
+  const [results, setResults] = useState<Course[]>([])
+  const [loading, setLoading] = useState(false)
 
-  const results = useMemo(() => {
-    if (!query.trim()) return MOCK_COURSES
-    const q = query.toLowerCase()
-    return MOCK_COURSES.filter(
-      (c) =>
-        c.title.toLowerCase().includes(q) ||
-        c.description.toLowerCase().includes(q) ||
-        c.tags.some((t) => t.includes(q)) ||
-        c.category.includes(q)
-    )
+  useEffect(() => {
+    const params = query.trim() ? { q: query, limit: 50 } : { limit: 50 }
+    setLoading(true)
+    api.get('/courses', { params })
+      .then((res) => setResults(res.data.data.courses))
+      .catch(() => setResults([]))
+      .finally(() => setLoading(false))
   }, [query])
 
   return (
@@ -42,11 +42,17 @@ export default function SearchContent() {
 
       {query && (
         <p className="mb-6 text-sm text-zinc-500">
-          {results.length} result{results.length !== 1 ? 's' : ''} for <span className="text-zinc-300">"{query}"</span>
+          {results.length} result{results.length !== 1 ? 's' : ''} for <span className="text-zinc-300">&quot;{query}&quot;</span>
         </p>
       )}
 
-      {results.length > 0 ? (
+      {loading ? (
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-64 rounded-xl bg-zinc-900 animate-pulse" />
+          ))}
+        </div>
+      ) : results.length > 0 ? (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {results.map((course) => (
             <CourseCard key={course.id} course={course} />
@@ -55,7 +61,7 @@ export default function SearchContent() {
       ) : (
         <div className="py-20 text-center">
           <p className="text-4xl mb-4">🔍</p>
-          <p className="text-zinc-400 font-medium">No results for "{query}"</p>
+          <p className="text-zinc-400 font-medium">No results for &quot;{query}&quot;</p>
           <p className="mt-2 text-sm text-zinc-600">Try a different keyword or browse all courses</p>
         </div>
       )}

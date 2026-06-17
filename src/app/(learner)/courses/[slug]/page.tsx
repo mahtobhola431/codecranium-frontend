@@ -1,30 +1,37 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { MOCK_COURSES, CATEGORY_LABELS, DIFFICULTY_LABELS, formatDuration } from '@/lib/mockData'
+import { CATEGORY_LABELS, DIFFICULTY_LABELS, formatDuration } from '@/lib/mockData'
+import type { Course } from '@/types'
 import EnrollButton from './EnrollButton'
 
-export async function generateStaticParams() {
-  return MOCK_COURSES.map((c) => ({ slug: c.slug }))
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1'
+
+async function getCourse(slug: string): Promise<Course | null> {
+  try {
+    const res = await fetch(`${API}/courses/${slug}`, { cache: 'no-store' })
+    if (!res.ok) return null
+    const json = await res.json()
+    return json.data.course
+  } catch {
+    return null
+  }
 }
 
 export async function generateMetadata(props: {
   params: Promise<{ slug: string }>
 }): Promise<Metadata> {
   const { slug } = await props.params
-  const course = MOCK_COURSES.find((c) => c.slug === slug)
+  const course = await getCourse(slug)
   if (!course) return {}
-  return {
-    title: course.title,
-    description: course.description,
-  }
+  return { title: course.title, description: course.description }
 }
 
 export default async function CourseDetailPage(props: {
   params: Promise<{ slug: string }>
 }) {
   const { slug } = await props.params
-  const course = MOCK_COURSES.find((c) => c.slug === slug)
+  const course = await getCourse(slug)
   if (!course) notFound()
 
   const firstLesson = course.sections[0]?.lessons[0]
@@ -33,16 +40,13 @@ export default async function CourseDetailPage(props: {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <div className="flex flex-col gap-10 lg:flex-row">
-        {/* Main content */}
         <div className="flex-1 min-w-0">
-          {/* Breadcrumb */}
           <nav className="mb-6 flex items-center gap-2 text-xs text-zinc-600">
             <Link href="/courses" className="hover:text-zinc-400">Courses</Link>
             <span>/</span>
             <span className="text-zinc-400">{CATEGORY_LABELS[course.category]}</span>
           </nav>
 
-          {/* Hero */}
           <div className={`mb-8 overflow-hidden rounded-2xl bg-gradient-to-br ${course.gradient} p-8 sm:p-12`}>
             <div className="flex items-start justify-between">
               <div>
@@ -72,9 +76,8 @@ export default async function CourseDetailPage(props: {
             </div>
           </div>
 
-          {/* What you'll learn */}
           <section className="mb-8 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-            <h2 className="text-lg font-semibold text-zinc-50 mb-4">What you'll learn</h2>
+            <h2 className="text-lg font-semibold text-zinc-50 mb-4">What you&apos;ll learn</h2>
             <ul className="grid gap-2 sm:grid-cols-2">
               {course.whatYouLearn.map((item, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-zinc-400">
@@ -85,7 +88,6 @@ export default async function CourseDetailPage(props: {
             </ul>
           </section>
 
-          {/* Curriculum */}
           <section className="mb-8">
             <h2 className="text-lg font-semibold text-zinc-50 mb-4">Course curriculum</h2>
             <div className="space-y-3">
@@ -125,7 +127,6 @@ export default async function CourseDetailPage(props: {
             </div>
           </section>
 
-          {/* Instructor */}
           <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
             <h2 className="text-lg font-semibold text-zinc-50 mb-4">Instructor</h2>
             <div className="flex items-start gap-4">
@@ -135,16 +136,11 @@ export default async function CourseDetailPage(props: {
               <div>
                 <h3 className="font-semibold text-zinc-50">{course.instructor.name}</h3>
                 <p className="mt-1 text-sm text-zinc-500">{course.instructor.bio}</p>
-                <div className="mt-2 flex items-center gap-4 text-xs text-zinc-600">
-                  <span>{course.instructor.courses} courses</span>
-                  <span>{course.instructor.students.toLocaleString()} students</span>
-                </div>
               </div>
             </div>
           </section>
         </div>
 
-        {/* Sticky enroll card */}
         <div className="lg:w-80 lg:shrink-0">
           <div className="sticky top-20 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
             <div className={`mb-4 h-40 rounded-lg bg-gradient-to-br ${course.gradient} flex items-center justify-center`}>
@@ -164,26 +160,11 @@ export default async function CourseDetailPage(props: {
             )}
 
             <div className="mt-5 space-y-2 text-xs text-zinc-500">
-              <div className="flex items-center gap-2">
-                <span>⏱</span>
-                <span>{formatDuration(course.duration)} total</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span>📄</span>
-                <span>{totalLessons} lessons</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span>⚡</span>
-                <span>In-browser code playground</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span>🏆</span>
-                <span>Certificate of completion</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span>♾</span>
-                <span>Lifetime access</span>
-              </div>
+              <div className="flex items-center gap-2"><span>⏱</span><span>{formatDuration(course.duration)} total</span></div>
+              <div className="flex items-center gap-2"><span>📄</span><span>{totalLessons} lessons</span></div>
+              <div className="flex items-center gap-2"><span>⚡</span><span>In-browser code playground</span></div>
+              <div className="flex items-center gap-2"><span>🏆</span><span>Certificate of completion</span></div>
+              <div className="flex items-center gap-2"><span>♾</span><span>Lifetime access</span></div>
             </div>
           </div>
         </div>

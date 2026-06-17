@@ -12,8 +12,9 @@ export interface AdminUser {
 
 interface AdminState {
   admin: AdminUser | null
+  token: string | null
   isAuthenticated: boolean
-  login: (admin: AdminUser) => void
+  login: (admin: AdminUser, token: string) => void
   logout: () => void
 }
 
@@ -35,9 +36,16 @@ export const useAdminStore = create<AdminState>()(
   persist(
     (set) => ({
       admin: null,
+      token: null,
       isAuthenticated: false,
-      login: (admin) => set({ admin, isAuthenticated: true }),
-      logout: () => set({ admin: null, isAuthenticated: false }),
+      login: (admin, token) => {
+        if (typeof window !== 'undefined') localStorage.setItem('cc-auth-token', token)
+        set({ admin, token, isAuthenticated: true })
+      },
+      logout: () => {
+        if (typeof window !== 'undefined') localStorage.removeItem('cc-auth-token')
+        set({ admin: null, token: null, isAuthenticated: false })
+      },
     }),
     { name: 'cc-admin' }
   )

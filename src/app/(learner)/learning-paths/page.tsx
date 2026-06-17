@@ -1,13 +1,55 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { MOCK_LEARNING_PATHS, MOCK_COURSES, DIFFICULTY_LABELS, formatDuration } from '@/lib/mockData'
+import { DIFFICULTY_LABELS, formatDuration } from '@/lib/mockData'
+import type { Course } from '@/types'
 
 export const metadata: Metadata = {
   title: 'Learning Paths',
   description: 'Structured curriculum to take you from beginner to production-ready developer.',
 }
 
-export default function LearningPathsPage() {
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1'
+
+interface RawPath {
+  id: string
+  slug: string
+  title: string
+  description: string
+  courseIds: string[]
+  difficulty: string
+  totalHours: number
+  icon: string
+  gradient: string
+}
+
+interface LearningPath extends Omit<RawPath, 'courseIds'> {
+  courses: Course[]
+}
+
+async function getLearningPaths(): Promise<LearningPath[]> {
+  try {
+    const [pathsRes, coursesRes] = await Promise.all([
+      fetch(`${API}/learning-paths`, { cache: 'no-store' }),
+      fetch(`${API}/courses?limit=50`, { cache: 'no-store' }),
+    ])
+    if (!pathsRes.ok) return []
+    const pathsJson = await pathsRes.json()
+    const coursesJson = coursesRes.ok ? await coursesRes.json() : { data: { courses: [] } }
+    const rawPaths: RawPath[] = pathsJson.data.paths ?? []
+    const allCourses: Course[] = coursesJson.data.courses ?? []
+    const courseById = new Map(allCourses.map((c) => [c.id, c]))
+    return rawPaths.map((p) => ({
+      ...p,
+      courses: (p.courseIds ?? []).map((id) => courseById.get(id)).filter(Boolean) as Course[],
+    }))
+  } catch {
+    return []
+  }
+}
+
+export default async function LearningPathsPage() {
+  const paths = await getLearningPaths()
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
       <div className="mb-10 text-center">
@@ -18,11 +60,9 @@ export default function LearningPathsPage() {
       </div>
 
       <div className="space-y-8">
-        {MOCK_LEARNING_PATHS.map((path) => {
-          const courses = path.courseIds
-            .map((id) => MOCK_COURSES.find((c) => c.id === id))
-            .filter(Boolean) as typeof MOCK_COURSES
-          const totalDuration = courses.reduce((acc, c) => acc + c.duration, 0)
+        {paths.map((path) => {
+          const courses = path.courses ?? []
+          const totalDuration = courses.reduce((acc, c) => acc + (c.duration ?? 0), 0)
 
           return (
             <div
@@ -30,7 +70,6 @@ export default function LearningPathsPage() {
               id={path.slug}
               className="rounded-2xl border border-zinc-800 bg-zinc-900 overflow-hidden"
             >
-              {/* Path header */}
               <div className={`bg-gradient-to-br ${path.gradient} p-7`}>
                 <div className="flex items-start gap-4">
                   <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-black/20 text-3xl">
@@ -39,7 +78,7 @@ export default function LearningPathsPage() {
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-0.5 text-xs font-medium text-white/80 capitalize">
-                        {DIFFICULTY_LABELS[path.difficulty]}
+                        {DIFFICULTY_LABELS[path.difficulty] ?? path.difficulty}
                       </span>
                     </div>
                     <h2 className="text-2xl font-bold text-white">{path.title}</h2>
@@ -49,13 +88,12 @@ export default function LearningPathsPage() {
                       <span>·</span>
                       <span>{formatDuration(totalDuration)} total</span>
                       <span>·</span>
-                      <span>{courses.reduce((a, c) => a + c.lessonCount, 0)} lessons</span>
+                      <span>{courses.reduce((a, c) => a + (c.lessonCount ?? 0), 0)} lessons</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Courses in path */}
               <div className="p-6">
                 <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">
                   Course sequence

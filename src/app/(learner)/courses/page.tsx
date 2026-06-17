@@ -1,24 +1,33 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import type { Metadata } from 'next'
+import { useState, useEffect, useMemo } from 'react'
 import CourseCard from '@/components/learner/CourseCard'
-import { MOCK_COURSES, CATEGORY_LABELS, DIFFICULTY_LABELS } from '@/lib/mockData'
-import type { Category, Difficulty } from '@/types'
+import { CATEGORY_LABELS, DIFFICULTY_LABELS } from '@/lib/mockData'
+import type { Course, Category, Difficulty } from '@/types'
+import api from '@/lib/api'
 
 const CATEGORIES = Object.keys(CATEGORY_LABELS) as Category[]
 const DIFFICULTIES = ['beginner', 'intermediate', 'advanced'] as Difficulty[]
 type SortKey = 'rating' | 'students' | 'price-asc' | 'price-desc'
 
 export default function CoursesPage() {
+  const [courses, setCourses] = useState<Course[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState<Category | ''>('')
   const [difficulty, setDifficulty] = useState<Difficulty | ''>('')
   const [priceFilter, setPriceFilter] = useState<'all' | 'free' | 'paid'>('all')
   const [sort, setSort] = useState<SortKey>('rating')
 
+  useEffect(() => {
+    api.get('/courses', { params: { limit: 50 } })
+      .then((res) => setCourses(res.data.data.courses))
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
   const filtered = useMemo(() => {
-    let list = [...MOCK_COURSES]
+    let list = [...courses]
     if (search) {
       const q = search.toLowerCase()
       list = list.filter(
@@ -41,7 +50,7 @@ export default function CoursesPage() {
       return 0
     })
     return list
-  }, [search, category, difficulty, priceFilter, sort])
+  }, [courses, search, category, difficulty, priceFilter, sort])
 
   const clearFilters = () => {
     setCategory('')
@@ -56,10 +65,9 @@ export default function CoursesPage() {
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-zinc-50">All Courses</h1>
-        <p className="mt-2 text-zinc-500">{MOCK_COURSES.length} courses across 8 languages</p>
+        <p className="mt-2 text-zinc-500">{courses.length} courses across 8 languages</p>
       </div>
 
-      {/* Search + sort bar */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative flex-1 max-w-md">
           <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -86,7 +94,6 @@ export default function CoursesPage() {
       </div>
 
       <div className="flex gap-8">
-        {/* Sidebar filters */}
         <aside className="hidden w-56 shrink-0 lg:block">
           <div className="sticky top-20 space-y-6">
             {hasFilters && (
@@ -157,9 +164,14 @@ export default function CoursesPage() {
           </div>
         </aside>
 
-        {/* Course grid */}
         <div className="flex-1">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-64 rounded-xl bg-zinc-900 animate-pulse" />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="py-24 text-center">
               <p className="text-zinc-500">No courses match your filters.</p>
               <button onClick={clearFilters} className="mt-4 text-sm text-indigo-400 hover:text-indigo-300">

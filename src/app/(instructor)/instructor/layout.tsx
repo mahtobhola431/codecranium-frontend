@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { useInstructorStore, validateInstructorLogin } from '@/store/instructorStore'
+import { useInstructorStore } from '@/store/instructorStore'
 import InstructorSidebar from '@/components/instructor/InstructorSidebar'
+import api from '@/lib/api'
 
 function InstructorLoginGate() {
   const { login } = useInstructorStore()
@@ -15,14 +16,20 @@ function InstructorLoginGate() {
     e.preventDefault()
     setError('')
     setLoading(true)
-    await new Promise((r) => setTimeout(r, 600))
-    const user = validateInstructorLogin(email, password)
-    if (user) {
-      login(user)
-    } else {
-      setError('Invalid credentials.')
+    try {
+      const { data } = await api.post('/auth/login', { email, password })
+      const { user, token } = data.data
+      if (user.role !== 'instructor' && user.role !== 'admin') {
+        setError('This account does not have instructor access.')
+        return
+      }
+      login({ id: user.id, name: user.name, email: user.email, bio: user.bio ?? '', avatar: user.avatar ?? '' }, token)
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      setError(msg ?? 'Invalid credentials.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
@@ -87,7 +94,12 @@ function InstructorLoginGate() {
 }
 
 export default function InstructorLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useInstructorStore()
+  const { isAuthenticated, token, logout } = useInstructorStore()
+
+  // If persisted session has no token (stale store from before token field was added), force re-login
+  if (typeof window !== 'undefined' && isAuthenticated && !token) {
+    logout()
+  }
 
   if (!isAuthenticated) return <InstructorLoginGate />
 

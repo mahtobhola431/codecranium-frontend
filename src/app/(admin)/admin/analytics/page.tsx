@@ -1,14 +1,37 @@
 'use client'
 
-import { useState } from 'react'
-import { MONTHLY_REVENUE, ADMIN_COURSES, PLATFORM_STATS } from '@/lib/adminMockData'
+import { useState, useEffect } from 'react'
+import api from '@/lib/api'
+
+interface MonthlyPoint {
+  month: string
+  revenue: number
+  students: number
+}
+
+interface AdminCourse {
+  id: string
+  title: string
+  students: number
+  status: string
+  gradient: string
+}
+
+interface PlatformStats {
+  totalStudents: number
+  totalRevenue: number
+  publishedCourses: number
+  newSignupsThisMonth: number
+  activeSubscriptions: number
+  avgRating: number
+}
 
 function BarChart({ data, valueKey, color = 'bg-indigo-500' }: {
-  data: Record<string, unknown>[]
-  valueKey: string
+  data: MonthlyPoint[]
+  valueKey: 'revenue' | 'students'
   color?: string
 }) {
-  const max = Math.max(...data.map((d) => Number(d[valueKey])))
+  const max = Math.max(...data.map((d) => d[valueKey])) || 1
   return (
     <div className="flex items-end gap-1 h-36">
       {data.map((d, i) => (
@@ -16,10 +39,10 @@ function BarChart({ data, valueKey, color = 'bg-indigo-500' }: {
           <div className="w-full rounded-t bg-zinc-800 relative" style={{ height: '120px' }}>
             <div
               className={`absolute bottom-0 w-full rounded-t ${color} transition-all`}
-              style={{ height: `${(Number(d[valueKey]) / max) * 120}px` }}
+              style={{ height: `${(d[valueKey] / max) * 120}px` }}
             />
           </div>
-          <span className="text-xs text-zinc-700">{String(d.month).slice(0, 3)}</span>
+          <span className="text-xs text-zinc-700">{d.month.slice(0, 3)}</span>
         </div>
       ))}
     </div>
@@ -28,12 +51,39 @@ function BarChart({ data, valueKey, color = 'bg-indigo-500' }: {
 
 export default function AdminAnalyticsPage() {
   const [metric, setMetric] = useState<'revenue' | 'students'>('revenue')
+  const [monthly, setMonthly] = useState<MonthlyPoint[]>([])
+  const [courses, setCourses] = useState<AdminCourse[]>([])
+  const [stats, setStats] = useState<PlatformStats | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const totalRevenue = MONTHLY_REVENUE.reduce((a, b) => a + b.revenue, 0)
-  const totalStudentsThisYear = MONTHLY_REVENUE.reduce((a, b) => a + b.students, 0)
-  const avgMonthlyRevenue = Math.round(totalRevenue / 12)
+  useEffect(() => {
+    Promise.all([
+      api.get('/admin/analytics/revenue'),
+      api.get('/admin/courses'),
+      api.get('/admin/stats'),
+    ])
+      .then(([revenueRes, coursesRes, statsRes]) => {
+        setMonthly(revenueRes.data.data.monthly ?? [])
+        setCourses(coursesRes.data.data.courses ?? [])
+        setStats(statsRes.data.data.stats ?? null)
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
 
-  const topCourses = [...ADMIN_COURSES]
+  if (loading) {
+    return (
+      <div className="p-6 space-y-6">
+        {[1, 2, 3].map((i) => <div key={i} className="h-24 rounded-xl bg-zinc-900 animate-pulse" />)}
+      </div>
+    )
+  }
+
+  const totalRevenue = monthly.reduce((a, b) => a + b.revenue, 0)
+  const totalStudentsThisYear = monthly.reduce((a, b) => a + b.students, 0)
+  const avgMonthlyRevenue = Math.round(totalRevenue / (monthly.length || 1))
+
+  const topCourses = [...courses]
     .filter((c) => c.status === 'published')
     .sort((a, b) => b.students - a.students)
     .slice(0, 5)
@@ -42,28 +92,24 @@ export default function AdminAnalyticsPage() {
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-xl font-bold text-zinc-50">Analytics</h1>
-        <p className="text-sm text-zinc-500 mt-0.5">Platform performance — Jan to Dec 2025</p>
+        <p className="text-sm text-zinc-500 mt-0.5">Platform performance — last 12 months</p>
       </div>
 
-      {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         {[
-          { label: 'Total revenue (2025)', value: `$${(totalRevenue / 1000).toFixed(1)}k`, delta: '+18.2%' },
-          { label: 'New students (2025)', value: totalStudentsThisYear.toLocaleString(), delta: '+12.4%' },
+          { label: 'Total revenue (12 mo)', value: `$${(totalRevenue / 1000).toFixed(1)}k`, delta: '' },
+          { label: 'New students (12 mo)', value: totalStudentsThisYear.toLocaleString(), delta: '' },
           { label: 'Avg monthly revenue', value: `$${avgMonthlyRevenue.toLocaleString()}`, delta: '' },
-          { label: 'Active subscriptions', value: PLATFORM_STATS.activeSubscriptions.toLocaleString(), delta: '+8.1%' },
+          { label: 'Active subscriptions', value: (stats?.activeSubscriptions ?? 0).toLocaleString(), delta: '' },
         ].map((kpi) => (
           <div key={kpi.label} className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
             <p className="text-xs text-zinc-500 uppercase tracking-wider">{kpi.label}</p>
             <p className="mt-2 text-2xl font-bold text-zinc-50">{kpi.value}</p>
-            {kpi.delta && (
-              <p className="mt-1 text-xs text-green-400">{kpi.delta} YoY</p>
-            )}
+            {kpi.delta && <p className="mt-1 text-xs text-green-400">{kpi.delta} YoY</p>}
           </div>
         ))}
       </div>
 
-      {/* Chart */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-sm font-semibold text-zinc-200">Monthly trend</h2>
@@ -83,29 +129,31 @@ export default function AdminAnalyticsPage() {
           </div>
         </div>
 
-        <BarChart
-          data={MONTHLY_REVENUE as unknown as Record<string, unknown>[]}
-          valueKey={metric}
-          color={metric === 'revenue' ? 'bg-indigo-500/80' : 'bg-teal-500/80'}
-        />
-
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-xs text-zinc-500">
-            <tbody>
-              <tr>
-                {MONTHLY_REVENUE.map((m) => (
-                  <td key={m.month} className="text-center py-1 px-1 whitespace-nowrap">
-                    {metric === 'revenue' ? `$${(m.revenue / 1000).toFixed(1)}k` : m.students}
-                  </td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        {monthly.length > 0 && (
+          <>
+            <BarChart
+              data={monthly}
+              valueKey={metric}
+              color={metric === 'revenue' ? 'bg-indigo-500/80' : 'bg-teal-500/80'}
+            />
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-xs text-zinc-500">
+                <tbody>
+                  <tr>
+                    {monthly.map((m) => (
+                      <td key={m.month} className="text-center py-1 px-1 whitespace-nowrap">
+                        {metric === 'revenue' ? `$${(m.revenue / 1000).toFixed(1)}k` : m.students}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        {/* Top courses by enrollment */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
           <h2 className="text-sm font-semibold text-zinc-200 mb-4">Top courses by enrollment</h2>
           <ul className="space-y-3">
@@ -119,7 +167,7 @@ export default function AdminAnalyticsPage() {
                     <div className="h-1 flex-1 rounded bg-zinc-800">
                       <div
                         className="h-1 rounded bg-indigo-500"
-                        style={{ width: `${(course.students / topCourses[0].students) * 100}%` }}
+                        style={{ width: `${topCourses[0].students > 0 ? (course.students / topCourses[0].students) * 100 : 0}%` }}
                       />
                     </div>
                     <span className="text-xs text-zinc-600 shrink-0">{course.students.toLocaleString()}</span>
@@ -127,43 +175,27 @@ export default function AdminAnalyticsPage() {
                 </div>
               </li>
             ))}
+            {topCourses.length === 0 && (
+              <p className="text-sm text-zinc-600 text-center py-4">No published courses</p>
+            )}
           </ul>
         </div>
 
-        {/* Plan distribution */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-          <h2 className="text-sm font-semibold text-zinc-200 mb-4">Subscription distribution</h2>
-          <div className="space-y-4">
+          <h2 className="text-sm font-semibold text-zinc-200 mb-4">Platform summary</h2>
+          <div className="space-y-3">
             {[
-              { label: 'Free', count: 42180, pct: 84, color: 'bg-zinc-600' },
-              { label: 'Pro', count: 6840, pct: 13, color: 'bg-indigo-500' },
-              { label: 'Team', count: 1400, pct: 3, color: 'bg-violet-500' },
-            ].map((tier) => (
-              <div key={tier.label}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs text-zinc-400">{tier.label}</span>
-                  <span className="text-xs text-zinc-500">{tier.count.toLocaleString()} ({tier.pct}%)</span>
-                </div>
-                <div className="h-2 w-full rounded-full bg-zinc-800">
-                  <div className={`h-2 rounded-full ${tier.color}`} style={{ width: `${tier.pct}%` }} />
-                </div>
+              { label: 'Total learners', value: (stats?.totalStudents ?? 0).toLocaleString() },
+              { label: 'Published courses', value: (stats?.publishedCourses ?? 0).toLocaleString() },
+              { label: 'New signups this month', value: (stats?.newSignupsThisMonth ?? 0).toLocaleString() },
+              { label: 'Avg course rating', value: stats?.avgRating ? `★ ${stats.avgRating}` : '—' },
+              { label: 'Total platform revenue', value: `$${(stats?.totalRevenue ?? 0).toLocaleString()}` },
+            ].map((row) => (
+              <div key={row.label} className="flex items-center justify-between py-2 border-b border-zinc-800/60 last:border-0">
+                <span className="text-xs text-zinc-500">{row.label}</span>
+                <span className="text-xs font-medium text-zinc-200">{row.value}</span>
               </div>
             ))}
-          </div>
-
-          <div className="mt-6 space-y-2 border-t border-zinc-800 pt-4">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-zinc-500">Avg revenue per user (ARPU)</span>
-              <span className="text-zinc-300 font-medium">$3.65/mo</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-zinc-500">Pro churn rate</span>
-              <span className="text-zinc-300 font-medium">4.2%/mo</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-zinc-500">Free → Pro conversion</span>
-              <span className="text-zinc-300 font-medium">16.2%</span>
-            </div>
           </div>
         </div>
       </div>

@@ -1,19 +1,47 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { INSTRUCTOR_COURSE_ANALYTICS, INSTRUCTOR_MONTHLY_EARNINGS, INSTRUCTOR_STUDENTS_SAMPLE } from '@/lib/adminMockData'
 import ProgressBar from '@/components/learner/ProgressBar'
+import api from '@/lib/api'
 
-function BarChart({ data, valueKey, color = 'bg-indigo-500' }: { data: Record<string, unknown>[]; valueKey: string; color?: string }) {
-  const max = Math.max(...data.map((d) => Number(d[valueKey])))
+interface CourseAnalytic {
+  courseId: string
+  title: string
+  students: number
+  completionRate: number
+  rating: number
+  reviewCount: number
+  revenue: number
+  price: number
+  gradient: string
+  totalLessons: number
+}
+
+interface StudentSample {
+  name: string
+  course: string
+  progress: number
+  joined: string
+  xp: number
+}
+
+interface MonthlyPoint {
+  month: string
+  earnings: number
+  students: number
+}
+
+function BarChart({ data, valueKey, color = 'bg-indigo-500' }: { data: MonthlyPoint[]; valueKey: 'students' | 'earnings'; color?: string }) {
+  const max = Math.max(...data.map((d) => d[valueKey])) || 1
   return (
     <div className="flex items-end gap-1.5 h-32">
       {data.map((d, i) => (
         <div key={i} className="flex flex-1 flex-col items-center gap-1">
           <div className="w-full rounded-t bg-zinc-800 relative" style={{ height: '112px' }}>
-            <div className={`absolute bottom-0 w-full rounded-t ${color}`} style={{ height: `${(Number(d[valueKey]) / max) * 112}px` }} />
+            <div className={`absolute bottom-0 w-full rounded-t ${color}`} style={{ height: `${(d[valueKey] / max) * 112}px` }} />
           </div>
-          <span className="text-xs text-zinc-700">{String(d.month).slice(0, 3)}</span>
+          <span className="text-xs text-zinc-700">{d.month.slice(0, 3)}</span>
         </div>
       ))}
     </div>
@@ -21,10 +49,42 @@ function BarChart({ data, valueKey, color = 'bg-indigo-500' }: { data: Record<st
 }
 
 export default function InstructorAnalyticsPage() {
-  const totalStudents = INSTRUCTOR_COURSE_ANALYTICS.reduce((a, c) => a + c.students, 0)
-  const totalReviews = INSTRUCTOR_COURSE_ANALYTICS.reduce((a, c) => a + c.reviewCount, 0)
-  const avgRating = (INSTRUCTOR_COURSE_ANALYTICS.reduce((a, c) => a + c.rating, 0) / INSTRUCTOR_COURSE_ANALYTICS.length).toFixed(2)
-  const avgCompletion = Math.round(INSTRUCTOR_COURSE_ANALYTICS.reduce((a, c) => a + c.completionRate, 0) / INSTRUCTOR_COURSE_ANALYTICS.length)
+  const [analytics, setAnalytics] = useState<CourseAnalytic[]>([])
+  const [students, setStudents] = useState<StudentSample[]>([])
+  const [monthlyEarnings, setMonthlyEarnings] = useState<MonthlyPoint[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    Promise.all([
+      api.get('/instructor/analytics'),
+      api.get('/instructor/students'),
+      api.get('/instructor/revenue'),
+    ])
+      .then(([analyticsRes, studentsRes, revenueRes]) => {
+        setAnalytics(analyticsRes.data.data.analytics ?? [])
+        setStudents(studentsRes.data.data.students ?? [])
+        setMonthlyEarnings(revenueRes.data.data.monthlyEarnings ?? [])
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="p-6 space-y-6">
+        {[1, 2, 3].map((i) => <div key={i} className="h-24 rounded-xl bg-zinc-900 animate-pulse" />)}
+      </div>
+    )
+  }
+
+  const totalStudents = analytics.reduce((a, c) => a + c.students, 0)
+  const totalReviews = analytics.reduce((a, c) => a + c.reviewCount, 0)
+  const avgRating = analytics.length
+    ? (analytics.reduce((a, c) => a + c.rating, 0) / analytics.length).toFixed(2)
+    : '0.00'
+  const avgCompletion = analytics.length
+    ? Math.round(analytics.reduce((a, c) => a + c.completionRate, 0) / analytics.length)
+    : 0
 
   return (
     <div className="p-6 space-y-6">
@@ -33,13 +93,12 @@ export default function InstructorAnalyticsPage() {
         <p className="text-sm text-zinc-500 mt-0.5">Performance across all your courses</p>
       </div>
 
-      {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         {[
           { label: 'Total students', value: totalStudents.toLocaleString(), sub: 'All time' },
           { label: 'Avg rating', value: `★ ${avgRating}`, sub: `${totalReviews.toLocaleString()} reviews` },
           { label: 'Avg completion', value: `${avgCompletion}%`, sub: 'Platform avg: 48%' },
-          { label: 'Courses', value: String(INSTRUCTOR_COURSE_ANALYTICS.length), sub: 'All published' },
+          { label: 'Courses', value: String(analytics.length), sub: 'All published' },
         ].map((kpi) => (
           <div key={kpi.label} className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
             <p className="text-xs text-zinc-500 uppercase tracking-wider">{kpi.label}</p>
@@ -49,17 +108,17 @@ export default function InstructorAnalyticsPage() {
         ))}
       </div>
 
-      {/* Monthly students chart */}
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-        <h2 className="text-sm font-semibold text-zinc-200 mb-4">Monthly new students (2025)</h2>
-        <BarChart data={INSTRUCTOR_MONTHLY_EARNINGS as unknown as Record<string, unknown>[]} valueKey="students" color="bg-teal-500/80" />
-      </div>
+      {monthlyEarnings.length > 0 && (
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
+          <h2 className="text-sm font-semibold text-zinc-200 mb-4">Monthly new students</h2>
+          <BarChart data={monthlyEarnings} valueKey="students" color="bg-teal-500/80" />
+        </div>
+      )}
 
-      {/* Per-course breakdown */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
         <h2 className="text-sm font-semibold text-zinc-200 mb-5">Per-course performance</h2>
         <div className="space-y-5">
-          {INSTRUCTOR_COURSE_ANALYTICS.map((course) => (
+          {analytics.map((course) => (
             <div key={course.courseId}>
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-3">
@@ -69,7 +128,7 @@ export default function InstructorAnalyticsPage() {
                     <div className="flex items-center gap-3 text-xs text-zinc-600 mt-0.5">
                       <span>{course.students.toLocaleString()} students</span>
                       <span>·</span>
-                      <span>★ {course.rating} ({course.reviewCount.toLocaleString()})</span>
+                      <span>★ {course.rating.toFixed(1)} ({course.reviewCount.toLocaleString()})</span>
                       <span>·</span>
                       <span>{course.price === 0 ? 'Free' : `$${course.price}`}</span>
                     </div>
@@ -85,10 +144,12 @@ export default function InstructorAnalyticsPage() {
               </div>
             </div>
           ))}
+          {analytics.length === 0 && (
+            <p className="text-sm text-zinc-600 text-center py-8">No published courses yet.</p>
+          )}
         </div>
       </div>
 
-      {/* Recent students */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
         <h2 className="text-sm font-semibold text-zinc-200 mb-4">Recent student activity</h2>
         <div className="overflow-x-auto">
@@ -103,7 +164,7 @@ export default function InstructorAnalyticsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/50">
-              {INSTRUCTOR_STUDENTS_SAMPLE.map((s, i) => (
+              {students.map((s, i) => (
                 <tr key={i} className="hover:bg-zinc-800/30">
                   <td className="py-3">
                     <div className="flex items-center gap-2">
@@ -126,6 +187,11 @@ export default function InstructorAnalyticsPage() {
                   <td className="py-3 text-right text-xs text-zinc-600">{s.joined}</td>
                 </tr>
               ))}
+              {students.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-xs text-zinc-600">No students yet</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

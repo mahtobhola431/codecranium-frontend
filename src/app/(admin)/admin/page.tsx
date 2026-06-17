@@ -1,12 +1,44 @@
 'use client'
 
 import Link from 'next/link'
-import {
-  PLATFORM_STATS,
-  MONTHLY_REVENUE,
-  ACTIVITY_FEED,
-  ADMIN_COURSES,
-} from '@/lib/adminMockData'
+import { useEffect, useState } from 'react'
+import api from '@/lib/api'
+
+interface Stats {
+  totalStudents: number
+  totalRevenue: number
+  publishedCourses: number
+  draftCourses: number
+  newSignupsThisMonth: number
+  activeSubscriptions: number
+  avgRating: number
+  revenueGrowthPct: number
+}
+
+interface MonthlyRevenue {
+  month: string
+  revenue: number
+  students: number
+}
+
+interface ActivityItem {
+  id: string
+  type: string
+  text: string
+  time: string
+}
+
+interface AdminCourse {
+  id: string
+  title: string
+  category: string
+  instructor: string
+  students: number
+  revenue: number
+  rating: number
+  status: string
+  gradient: string
+}
 
 function StatCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
   return (
@@ -18,19 +50,19 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
   )
 }
 
-function BarChart({ data, valueKey, labelKey }: { data: Record<string, unknown>[]; valueKey: string; labelKey: string }) {
-  const max = Math.max(...data.map((d) => Number(d[valueKey])))
+function BarChart({ data }: { data: MonthlyRevenue[] }) {
+  const max = Math.max(...data.map((d) => d.revenue), 1)
   return (
     <div className="flex items-end gap-1.5 h-32">
       {data.map((d) => (
-        <div key={String(d[labelKey])} className="flex flex-1 flex-col items-center gap-1">
+        <div key={d.month} className="flex flex-1 flex-col items-center gap-1">
           <div className="w-full rounded-t bg-zinc-800 relative" style={{ height: '112px' }}>
             <div
               className="absolute bottom-0 w-full rounded-t bg-indigo-500/80 transition-all"
-              style={{ height: `${(Number(d[valueKey]) / max) * 112}px` }}
+              style={{ height: `${(d.revenue / max) * 112}px` }}
             />
           </div>
-          <span className="text-xs text-zinc-700 leading-none">{String(d[labelKey]).slice(0, 3)}</span>
+          <span className="text-xs text-zinc-700 leading-none">{d.month.slice(0, 3)}</span>
         </div>
       ))}
     </div>
@@ -46,14 +78,47 @@ const ACTIVITY_ICONS: Record<string, string> = {
 }
 
 export default function AdminDashboard() {
-  const publishedCourses = ADMIN_COURSES.filter((c) => c.status === 'published')
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [monthly, setMonthly] = useState<MonthlyRevenue[]>([])
+  const [activity, setActivity] = useState<ActivityItem[]>([])
+  const [courses, setCourses] = useState<AdminCourse[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    Promise.all([
+      api.get('/admin/stats'),
+      api.get('/admin/analytics/revenue'),
+      api.get('/admin/activity'),
+      api.get('/admin/courses'),
+    ])
+      .then(([statsRes, revenueRes, activityRes, coursesRes]) => {
+        setStats(statsRes.data.data.stats)
+        setMonthly(revenueRes.data.data.monthly ?? [])
+        setActivity(activityRes.data.data.activity ?? [])
+        setCourses(coursesRes.data.data.courses ?? [])
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
+  const publishedCourses = courses.filter((c) => c.status === 'published')
+
+  if (loading) {
+    return (
+      <div className="p-6 space-y-6">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-24 rounded-xl bg-zinc-900 animate-pulse" />
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-zinc-50">Platform Overview</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">Last updated: June 7, 2025</p>
+          <p className="mt-0.5 text-sm text-zinc-500">Live data from the database</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1.5 rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-xs text-green-400">
@@ -63,56 +128,48 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <StatCard
           label="Total students"
-          value={PLATFORM_STATS.totalStudents.toLocaleString()}
-          sub={`+${PLATFORM_STATS.newSignupsThisMonth.toLocaleString()} this month`}
+          value={(stats?.totalStudents ?? 0).toLocaleString()}
+          sub={`+${stats?.newSignupsThisMonth ?? 0} this month`}
           color="border-zinc-800 bg-zinc-900"
         />
         <StatCard
           label="Total revenue"
-          value={`$${(PLATFORM_STATS.totalRevenue / 1000).toFixed(1)}k`}
-          sub={`+${PLATFORM_STATS.revenueGrowthPct}% MoM`}
+          value={`$${((stats?.totalRevenue ?? 0) / 1000).toFixed(1)}k`}
+          sub={`+${stats?.revenueGrowthPct ?? 0}% MoM`}
           color="border-zinc-800 bg-zinc-900"
         />
         <StatCard
           label="Active subscriptions"
-          value={PLATFORM_STATS.activeSubscriptions.toLocaleString()}
-          sub={`Avg rating ${PLATFORM_STATS.avgRating}`}
+          value={(stats?.activeSubscriptions ?? 0).toLocaleString()}
+          sub={`Avg rating ${stats?.avgRating ?? 0}`}
           color="border-zinc-800 bg-zinc-900"
         />
         <StatCard
           label="Published courses"
-          value={String(PLATFORM_STATS.publishedCourses)}
-          sub={`${ADMIN_COURSES.filter((c) => c.status === 'draft').length} drafts`}
+          value={String(stats?.publishedCourses ?? 0)}
+          sub={`${stats?.draftCourses ?? 0} drafts`}
           color="border-zinc-800 bg-zinc-900"
         />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-3">
-        {/* Revenue chart */}
         <div className="lg:col-span-2 rounded-xl border border-zinc-800 bg-zinc-900 p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-zinc-200">Monthly Revenue (2025)</h2>
+            <h2 className="text-sm font-semibold text-zinc-200">Monthly Revenue</h2>
             <span className="text-xs text-zinc-500">
-              Total: ${MONTHLY_REVENUE.reduce((a, b) => a + b.revenue, 0).toLocaleString()}
+              Total: ${monthly.reduce((a, b) => a + b.revenue, 0).toLocaleString()}
             </span>
           </div>
-          <BarChart data={MONTHLY_REVENUE as unknown as Record<string, unknown>[]} valueKey="revenue" labelKey="month" />
-          <div className="mt-3 flex items-center gap-4 text-xs text-zinc-600">
-            <span>Peak: Dec ($23.8k)</span>
-            <span>·</span>
-            <span>Avg: ${Math.round(MONTHLY_REVENUE.reduce((a, b) => a + b.revenue, 0) / 12).toLocaleString()}/mo</span>
-          </div>
+          <BarChart data={monthly} />
         </div>
 
-        {/* Activity feed */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
           <h2 className="text-sm font-semibold text-zinc-200 mb-4">Recent Activity</h2>
           <ul className="space-y-3">
-            {ACTIVITY_FEED.map((item) => (
+            {activity.slice(0, 8).map((item) => (
               <li key={item.id} className="flex items-start gap-3">
                 <span className="text-base leading-none mt-0.5">{ACTIVITY_ICONS[item.type] ?? '·'}</span>
                 <div>
@@ -125,7 +182,6 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Top courses */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900">
         <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
           <h2 className="text-sm font-semibold text-zinc-200">Published Courses</h2>
@@ -159,7 +215,7 @@ export default function AdminDashboard() {
                   <td className="px-4 py-3 text-right text-zinc-400">
                     {course.revenue === 0 ? <span className="text-green-400">Free</span> : `$${course.revenue.toLocaleString()}`}
                   </td>
-                  <td className="px-4 py-3 text-right text-amber-400">{course.rating > 0 ? `★ ${course.rating}` : '—'}</td>
+                  <td className="px-4 py-3 text-right text-amber-400">{course.rating > 0 ? `★ ${course.rating.toFixed(1)}` : '—'}</td>
                 </tr>
               ))}
             </tbody>

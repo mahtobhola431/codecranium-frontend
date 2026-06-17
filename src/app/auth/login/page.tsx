@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
+import api from '@/lib/api'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -17,26 +18,19 @@ export default function LoginPage() {
     e.preventDefault()
     setError('')
     setLoading(true)
-    await new Promise((r) => setTimeout(r, 800))
-    // Mock login — replace with real API call
-    if (email && password.length >= 6) {
-      login(
-        {
-          id: 'u1',
-          name: email.split('@')[0],
-          email,
-          avatar: '',
-          xp: 1240,
-          streak: 4,
-          joinedAt: new Date().toISOString(),
-        },
-        'mock-token-' + Date.now()
-      )
-      router.push('/dashboard')
-    } else {
-      setError('Invalid email or password.')
+    try {
+      const { data } = await api.post('/auth/login', { email, password })
+      const { user, token } = data.data
+      login(user, token)
+      if (user.role === 'admin') router.push('/admin')
+      else if (user.role === 'instructor') router.push('/instructor')
+      else router.push('/dashboard')
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      setError(msg ?? 'Invalid email or password.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
@@ -53,7 +47,6 @@ export default function LoginPage() {
           <h1 className="text-xl font-bold text-zinc-50">Welcome back</h1>
           <p className="mt-1 text-sm text-zinc-500">Sign in to continue learning</p>
 
-          {/* OAuth */}
           <div className="mt-6 space-y-3">
             <button className="flex w-full items-center justify-center gap-3 rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-3 text-sm font-medium text-zinc-300 transition hover:bg-zinc-700">
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
@@ -78,7 +71,6 @@ export default function LoginPage() {
             <div className="flex-1 h-px bg-zinc-800" />
           </div>
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-zinc-400 mb-1.5">Email</label>

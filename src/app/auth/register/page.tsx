@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
+import api from '@/lib/api'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -22,22 +23,17 @@ export default function RegisterPage() {
       return
     }
     setLoading(true)
-    await new Promise((r) => setTimeout(r, 900))
-    // Mock register — replace with real API call
-    login(
-      {
-        id: 'u-' + Date.now(),
-        name: name || email.split('@')[0],
-        email,
-        avatar: '',
-        xp: 0,
-        streak: 0,
-        joinedAt: new Date().toISOString(),
-      },
-      'mock-token-' + Date.now()
-    )
-    router.push('/dashboard')
-    setLoading(false)
+    try {
+      const { data } = await api.post('/auth/register', { name, email, password })
+      const { user, token } = data.data
+      login(user, token)
+      router.push('/dashboard')
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      setError(msg ?? 'Registration failed. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -54,7 +50,6 @@ export default function RegisterPage() {
           <h1 className="text-xl font-bold text-zinc-50">Create your account</h1>
           <p className="mt-1 text-sm text-zinc-500">Start learning for free — no credit card required</p>
 
-          {/* OAuth */}
           <div className="mt-6 space-y-3">
             <button className="flex w-full items-center justify-center gap-3 rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-3 text-sm font-medium text-zinc-300 transition hover:bg-zinc-700">
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">

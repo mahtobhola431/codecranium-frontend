@@ -1,7 +1,22 @@
 'use client'
 
-import { useState } from 'react'
-import { ADMIN_STUDENTS, type PlanType, type StudentStatus } from '@/lib/adminMockData'
+import { useState, useEffect } from 'react'
+import api from '@/lib/api'
+
+type PlanType = 'Free' | 'Pro' | 'Team'
+type StudentStatus = 'active' | 'inactive' | 'banned'
+
+interface Student {
+  id: string
+  name: string
+  email: string
+  joined: string
+  courses: number
+  xp: number
+  plan: PlanType
+  status: StudentStatus
+  lastActive: string | null
+}
 
 const PLAN_STYLES: Record<PlanType, string> = {
   Free: 'text-zinc-400 bg-zinc-700/40',
@@ -17,7 +32,15 @@ const STATUS_STYLES: Record<StudentStatus, string> = {
 export default function AdminStudentsPage() {
   const [search, setSearch] = useState('')
   const [planFilter, setPlanFilter] = useState<PlanType | 'all'>('all')
-  const [students, setStudents] = useState(ADMIN_STUDENTS)
+  const [students, setStudents] = useState<Student[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    api.get('/admin/students', { params: { limit: 100 } })
+      .then((res) => setStudents(res.data.data.students ?? []))
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
 
   const filtered = students.filter((s) => {
     const q = search.toLowerCase()
@@ -26,10 +49,15 @@ export default function AdminStudentsPage() {
     return matchSearch && matchPlan
   })
 
-  const ban = (id: string) =>
-    setStudents((p) =>
-      p.map((s) => (s.id === id ? { ...s, status: s.status === 'banned' ? 'active' as StudentStatus : 'banned' as StudentStatus } : s))
-    )
+  const toggleBan = async (id: string, current: StudentStatus) => {
+    const newStatus: StudentStatus = current === 'banned' ? 'active' : 'banned'
+    try {
+      await api.patch(`/admin/students/${id}`, { status: newStatus })
+      setStudents((p) => p.map((s) => (s.id === id ? { ...s, status: newStatus } : s)))
+    } catch (err) {
+      console.error(err)
+    }
+  }
 
   return (
     <div className="p-6 space-y-5">
@@ -45,7 +73,6 @@ export default function AdminStudentsPage() {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1 max-w-sm">
           <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -76,67 +103,71 @@ export default function AdminStudentsPage() {
       </div>
 
       <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-zinc-800">
-                <th className="px-5 py-3 text-left text-xs font-medium text-zinc-500">Student</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500">Joined</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-zinc-500">Plan</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-zinc-500">Courses</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-zinc-500">XP</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500">Last active</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-zinc-500">Status</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-zinc-500">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800/50">
-              {filtered.map((student) => (
-                <tr key={student.id} className="hover:bg-zinc-800/30 transition-colors">
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-xs font-bold text-indigo-300">
-                        {student.name.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="font-medium text-zinc-200 text-sm">{student.name}</p>
-                        <p className="text-xs text-zinc-600">{student.email}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3.5 text-xs text-zinc-500">{student.joined}</td>
-                  <td className="px-4 py-3.5 text-center">
-                    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${PLAN_STYLES[student.plan]}`}>
-                      {student.plan}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3.5 text-right text-zinc-400">{student.courses}</td>
-                  <td className="px-4 py-3.5 text-right text-indigo-400 font-mono text-xs">{student.xp.toLocaleString()}</td>
-                  <td className="px-4 py-3.5 text-xs text-zinc-600">{student.lastActive}</td>
-                  <td className="px-4 py-3.5 text-center">
-                    <span className={`text-xs font-medium capitalize ${STATUS_STYLES[student.status]}`}>
-                      {student.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3.5 text-center">
-                    <button
-                      onClick={() => ban(student.id)}
-                      className={`rounded px-2 py-1 text-xs transition ${
-                        student.status === 'banned'
-                          ? 'text-green-400 hover:bg-green-500/10'
-                          : 'text-red-400 hover:bg-red-500/10'
-                      }`}
-                    >
-                      {student.status === 'banned' ? 'Unban' : 'Ban'}
-                    </button>
-                  </td>
+        {loading ? (
+          <div className="py-16 text-center text-zinc-600 animate-pulse">Loading students...</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-800">
+                  <th className="px-5 py-3 text-left text-xs font-medium text-zinc-500">Student</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500">Joined</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-zinc-500">Plan</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-zinc-500">Courses</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-zinc-500">XP</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500">Last active</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-zinc-500">Status</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-zinc-500">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {filtered.length === 0 && (
-          <div className="py-16 text-center text-zinc-600">No students found</div>
+              </thead>
+              <tbody className="divide-y divide-zinc-800/50">
+                {filtered.map((student) => (
+                  <tr key={student.id} className="hover:bg-zinc-800/30 transition-colors">
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-xs font-bold text-indigo-300">
+                          {student.name.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="font-medium text-zinc-200 text-sm">{student.name}</p>
+                          <p className="text-xs text-zinc-600">{student.email}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5 text-xs text-zinc-500">{student.joined}</td>
+                    <td className="px-4 py-3.5 text-center">
+                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${PLAN_STYLES[student.plan]}`}>
+                        {student.plan}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5 text-right text-zinc-400">{student.courses}</td>
+                    <td className="px-4 py-3.5 text-right text-indigo-400 font-mono text-xs">{student.xp.toLocaleString()}</td>
+                    <td className="px-4 py-3.5 text-xs text-zinc-600">{student.lastActive ?? '—'}</td>
+                    <td className="px-4 py-3.5 text-center">
+                      <span className={`text-xs font-medium capitalize ${STATUS_STYLES[student.status]}`}>
+                        {student.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5 text-center">
+                      <button
+                        onClick={() => toggleBan(student.id, student.status)}
+                        className={`rounded px-2 py-1 text-xs transition ${
+                          student.status === 'banned'
+                            ? 'text-green-400 hover:bg-green-500/10'
+                            : 'text-red-400 hover:bg-red-500/10'
+                        }`}
+                      >
+                        {student.status === 'banned' ? 'Unban' : 'Ban'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {filtered.length === 0 && (
+              <div className="py-16 text-center text-zinc-600">No students found</div>
+            )}
+          </div>
         )}
       </div>
     </div>

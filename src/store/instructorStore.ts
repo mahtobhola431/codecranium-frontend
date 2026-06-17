@@ -13,8 +13,9 @@ export interface InstructorUser {
 
 interface InstructorState {
   instructor: InstructorUser | null
+  token: string | null
   isAuthenticated: boolean
-  login: (instructor: InstructorUser) => void
+  login: (instructor: InstructorUser, token: string) => void
   logout: () => void
 }
 
@@ -52,9 +53,16 @@ export const useInstructorStore = create<InstructorState>()(
   persist(
     (set) => ({
       instructor: null,
+      token: null,
       isAuthenticated: false,
-      login: (instructor) => set({ instructor, isAuthenticated: true }),
-      logout: () => set({ instructor: null, isAuthenticated: false }),
+      login: (instructor, token) => {
+        if (typeof window !== 'undefined') localStorage.setItem('cc-auth-token', token)
+        set({ instructor, token, isAuthenticated: true })
+      },
+      logout: () => {
+        if (typeof window !== 'undefined') localStorage.removeItem('cc-auth-token')
+        set({ instructor: null, token: null, isAuthenticated: false })
+      },
     }),
     { name: 'cc-instructor' }
   )

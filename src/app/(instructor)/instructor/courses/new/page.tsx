@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { CATEGORY_LABELS, DIFFICULTY_LABELS } from '@/lib/mockData'
+import api from '@/lib/api'
 
 const GRADIENTS = [
   'from-yellow-500 to-orange-500',
@@ -18,6 +20,7 @@ const GRADIENTS = [
 const STEPS = ['Basics', 'Curriculum', 'Content', 'Review']
 
 export default function NewCoursePage() {
+  const router = useRouter()
   const [step, setStep] = useState(0)
   const [form, setForm] = useState({
     title: '',
@@ -51,11 +54,38 @@ export default function NewCoursePage() {
       )
     )
 
+  const slugify = (text: string) =>
+    text.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'untitled'
+
   const handlePublish = async () => {
     setSaving(true)
-    await new Promise((r) => setTimeout(r, 1200))
-    setSaving(false)
-    setPublished(true)
+    try {
+      await api.post('/instructor/courses', {
+        slug: slugify(form.title),
+        title: form.title,
+        description: form.description,
+        longDescription: form.longDescription,
+        category: form.category,
+        difficulty: form.difficulty,
+        price: Number(form.price),
+        gradient: form.gradient,
+        tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
+        whatYouLearn: form.whatYouLearn.split('\n').filter(Boolean).map((s) => s.slice(0, 200)),
+        codeLanguage: form.codeLanguage,
+        sections: sections.map((sec, si) => ({
+          ...sec,
+          lessons: sec.lessons.map((l, li) => ({
+            ...l,
+            slug: slugify(l.title) || `lesson-${si + 1}-${li + 1}`,
+          })),
+        })),
+      })
+      setPublished(true)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (published) {
@@ -68,9 +98,12 @@ export default function NewCoursePage() {
             <strong className="text-zinc-300">{form.title || 'Your course'}</strong> has been submitted for review. It typically goes live within 24 hours.
           </p>
           <div className="mt-6 flex gap-3 justify-center">
-            <Link href="/instructor/courses" className="rounded-xl border border-zinc-700 px-5 py-2.5 text-sm text-zinc-300 hover:border-zinc-600">
+            <button
+              onClick={() => router.push('/instructor/courses')}
+              className="rounded-xl border border-zinc-700 px-5 py-2.5 text-sm text-zinc-300 hover:border-zinc-600"
+            >
               My courses
-            </Link>
+            </button>
             <button
               onClick={() => { setPublished(false); setStep(0); setForm({ title: '', description: '', longDescription: '', category: 'javascript', difficulty: 'beginner', price: '0', gradient: GRADIENTS[0], tags: '', whatYouLearn: '', codeLanguage: 'javascript' }); setSections([{ id: 's1', title: 'Introduction', lessons: [{ id: 'l1', title: 'Welcome', type: 'article', duration: 5, isPreview: true }] }]) }}
               className="rounded-xl bg-indigo-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-600 transition"

@@ -1,8 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { ADMIN_COURSES, type CourseStatus } from '@/lib/adminMockData'
+import api from '@/lib/api'
+
+type CourseStatus = 'published' | 'draft' | 'archived'
+
+interface AdminCourse {
+  id: string
+  title: string
+  instructor: string
+  students: number
+  revenue: number
+  rating: number
+  status: CourseStatus
+  lastUpdated: string
+  gradient: string
+}
 
 const STATUS_STYLES: Record<CourseStatus, string> = {
   published: 'bg-green-500/15 text-green-400 border-green-500/30',
@@ -13,9 +27,19 @@ const STATUS_STYLES: Record<CourseStatus, string> = {
 export default function AdminCoursesPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<CourseStatus | 'all'>('all')
-  const [localCourses, setLocalCourses] = useState(ADMIN_COURSES)
+  const [courses, setCourses] = useState<AdminCourse[]>([])
+  const [loading, setLoading] = useState(true)
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  const filtered = localCourses.filter((c) => {
+  useEffect(() => {
+    setLoading(true)
+    api.get('/admin/courses', { params: { _t: refreshKey } })
+      .then((res) => setCourses(res.data.data.courses ?? []))
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [refreshKey])
+
+  const filtered = courses.filter((c) => {
     const matchesSearch =
       !search ||
       c.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -24,14 +48,14 @@ export default function AdminCoursesPage() {
     return matchesSearch && matchesStatus
   })
 
-  const toggleStatus = (id: string) => {
-    setLocalCourses((prev) =>
-      prev.map((c) =>
-        c.id === id
-          ? { ...c, status: c.status === 'published' ? 'draft' : 'published' as CourseStatus }
-          : c
-      )
-    )
+  const toggleStatus = async (id: string, current: CourseStatus) => {
+    const newStatus: CourseStatus = current === 'published' ? 'draft' : 'published'
+    try {
+      await api.patch(`/instructor/courses/${id}/status`, { status: newStatus })
+      setCourses((prev) => prev.map((c) => c.id === id ? { ...c, status: newStatus } : c))
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   return (
@@ -39,14 +63,24 @@ export default function AdminCoursesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-zinc-50">Courses</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">{localCourses.length} total courses</p>
+          <p className="text-sm text-zinc-500 mt-0.5">{courses.length} total courses</p>
         </div>
-        <Link
-          href="/admin/courses/new"
-          className="flex items-center gap-2 rounded-xl bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-600"
-        >
-          + New course
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setRefreshKey((k) => k + 1)}
+            disabled={loading}
+            className="rounded-xl border border-zinc-700 px-3 py-2.5 text-sm text-zinc-400 transition hover:border-zinc-600 hover:text-zinc-200 disabled:opacity-40"
+            title="Refresh"
+          >
+            ↻
+          </button>
+          <Link
+            href="/admin/courses/new"
+            className="flex items-center gap-2 rounded-xl bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-600"
+          >
+            + New course
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
@@ -82,73 +116,77 @@ export default function AdminCoursesPage() {
 
       {/* Table */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-zinc-800 bg-zinc-900/80">
-                <th className="px-5 py-3 text-left text-xs font-medium text-zinc-500">Course</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500">Instructor</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-zinc-500">Students</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-zinc-500">Revenue</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-zinc-500">Rating</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-zinc-500">Status</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-zinc-500">Updated</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-zinc-500">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800/50">
-              {filtered.map((course) => (
-                <tr key={course.id} className="hover:bg-zinc-800/30 transition-colors">
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className={`h-9 w-9 shrink-0 rounded-lg bg-gradient-to-br ${course.gradient}`} />
-                      <span className="font-medium text-zinc-200 truncate max-w-[180px]">{course.title}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3.5 text-zinc-400 text-xs">{course.instructor}</td>
-                  <td className="px-4 py-3.5 text-right text-zinc-400">{course.students.toLocaleString()}</td>
-                  <td className="px-4 py-3.5 text-right">
-                    {course.revenue === 0
-                      ? <span className="text-green-400 text-xs">Free</span>
-                      : <span className="text-zinc-400">${course.revenue.toLocaleString()}</span>
-                    }
-                  </td>
-                  <td className="px-4 py-3.5 text-right text-amber-400 text-xs">
-                    {course.rating > 0 ? `★ ${course.rating}` : '—'}
-                  </td>
-                  <td className="px-4 py-3.5 text-center">
-                    <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_STYLES[course.status]}`}>
-                      {course.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3.5 text-right text-xs text-zinc-600">{course.lastUpdated}</td>
-                  <td className="px-4 py-3.5">
-                    <div className="flex items-center justify-center gap-2">
-                      <Link
-                        href={`/admin/courses/${course.id}`}
-                        className="rounded px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition"
-                      >
-                        Edit
-                      </Link>
-                      <button
-                        onClick={() => toggleStatus(course.id)}
-                        className={`rounded px-2 py-1 text-xs transition ${
-                          course.status === 'published'
-                            ? 'text-amber-400 hover:bg-amber-500/10'
-                            : 'text-green-400 hover:bg-green-500/10'
-                        }`}
-                      >
-                        {course.status === 'published' ? 'Unpublish' : 'Publish'}
-                      </button>
-                    </div>
-                  </td>
+        {loading ? (
+          <div className="py-16 text-center text-zinc-600 animate-pulse">Loading courses...</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-800 bg-zinc-900/80">
+                  <th className="px-5 py-3 text-left text-xs font-medium text-zinc-500">Course</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500">Instructor</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-zinc-500">Students</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-zinc-500">Revenue</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-zinc-500">Rating</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-zinc-500">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-zinc-500">Updated</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-zinc-500">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {filtered.length === 0 && (
-          <div className="py-16 text-center text-zinc-600">No courses match your filters</div>
+              </thead>
+              <tbody className="divide-y divide-zinc-800/50">
+                {filtered.map((course) => (
+                  <tr key={course.id} className="hover:bg-zinc-800/30 transition-colors">
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-9 w-9 shrink-0 rounded-lg bg-gradient-to-br ${course.gradient}`} />
+                        <span className="font-medium text-zinc-200 truncate max-w-[180px]">{course.title}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5 text-zinc-400 text-xs">{course.instructor}</td>
+                    <td className="px-4 py-3.5 text-right text-zinc-400">{course.students.toLocaleString()}</td>
+                    <td className="px-4 py-3.5 text-right">
+                      {course.revenue === 0
+                        ? <span className="text-green-400 text-xs">Free</span>
+                        : <span className="text-zinc-400">${course.revenue.toLocaleString()}</span>
+                      }
+                    </td>
+                    <td className="px-4 py-3.5 text-right text-amber-400 text-xs">
+                      {course.rating > 0 ? `★ ${course.rating}` : '—'}
+                    </td>
+                    <td className="px-4 py-3.5 text-center">
+                      <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_STYLES[course.status]}`}>
+                        {course.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5 text-right text-xs text-zinc-600">{course.lastUpdated}</td>
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center justify-center gap-2">
+                        <Link
+                          href={`/admin/courses/${course.id}`}
+                          className="rounded px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition"
+                        >
+                          Edit
+                        </Link>
+                        <button
+                          onClick={() => toggleStatus(course.id, course.status)}
+                          className={`rounded px-2 py-1 text-xs transition ${
+                            course.status === 'published'
+                              ? 'text-amber-400 hover:bg-amber-500/10'
+                              : 'text-green-400 hover:bg-green-500/10'
+                          }`}
+                        >
+                          {course.status === 'published' ? 'Unpublish' : 'Publish'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {filtered.length === 0 && (
+              <div className="py-16 text-center text-zinc-600">No courses match your filters</div>
+            )}
+          </div>
         )}
       </div>
     </div>
