@@ -144,7 +144,7 @@ export default function InstructorDashboard() {
                     <span>·</span>
                     <span>★ {course.rating.toFixed(1)}</span>
                     <span>·</span>
-                    <span>{course.price === 0 ? 'Free' : `$${course.price}`}</span>
+                    <span>{course.price === 0 ? 'Free' : `₹${course.price}`}</span>
                   </div>
                 </div>
                 <Link

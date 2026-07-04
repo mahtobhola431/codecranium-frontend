@@ -137,7 +137,7 @@ export default function AdminDashboard() {
         />
         <StatCard
           label="Total revenue"
-          value={`$${((stats?.totalRevenue ?? 0) / 1000).toFixed(1)}k`}
+          value={`₹${((stats?.totalRevenue ?? 0) / 1000).toFixed(1)}k`}
           sub={`+${stats?.revenueGrowthPct ?? 0}% MoM`}
           color="border-zinc-800 bg-zinc-900"
         />
@@ -213,7 +213,7 @@ export default function AdminDashboard() {
                   </td>
                   <td className="px-4 py-3 text-right text-zinc-400">{course.students.toLocaleString()}</td>
                   <td className="px-4 py-3 text-right text-zinc-400">
-                    {course.revenue === 0 ? <span className="text-green-400">Free</span> : `$${course.revenue.toLocaleString()}`}
+                    {course.revenue === 0 ? <span className="text-green-400">Free</span> : `₹${course.revenue.toLocaleString()}`}
                   </td>
                   <td className="px-4 py-3 text-right text-amber-400">{course.rating > 0 ? `★ ${course.rating.toFixed(1)}` : '—'}</td>
                 </tr>

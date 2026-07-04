@@ -224,7 +224,7 @@ export default function InstructorCourseEditorClient({ courseId }: Props) {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Price (USD) — 0 for free</label>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Price (INR) — 0 for free</label>
               <input type="number" min={0} value={form.price} onChange={(e) => set('price', e.target.value)} className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-200 focus:outline-none" />
             </div>
             <div>

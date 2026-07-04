@@ -75,7 +75,7 @@ export default function CourseCard({ course, variant = 'default' }: Props) {
 
         <div className="mt-3 flex items-center justify-between">
           <span className="text-sm font-semibold text-zinc-50">
-            {course.price === 0 ? 'Free' : `$${course.price}`}
+            {course.price === 0 ? 'Free' : `₹${course.price}`}
           </span>
           <span className="text-xs text-zinc-500">{course.instructor.name}</span>
         </div>

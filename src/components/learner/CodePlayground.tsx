@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { CodeLanguage } from '@/types'
+import api from '@/lib/api'
 
 interface Props {
   initialCode?: string
@@ -36,9 +37,31 @@ export default function CodePlayground({ initialCode, language = 'javascript', r
   const runCode = async () => {
     setIsRunning(true)
     setTab('output')
-    await new Promise((r) => setTimeout(r, 800))
-    setOutput(`// Code execution requires the backend service\n// Output will appear here once connected\n\n> Running ${LANGUAGE_LABELS[language]} code...\n> Environment: Isolated Docker container\n> Status: Backend not yet configured`)
-    setIsRunning(false)
+    try {
+      const { data } = await api.post('/execute', { language, code })
+      const { status, stdout, stderr, compileOutput, time, memory } = data.data as {
+        status: string
+        stdout: string
+        stderr: string
+        compileOutput: string
+        time?: string
+        memory?: number
+      }
+
+      const parts: string[] = []
+      if (compileOutput) parts.push(`> Compile output:\n${compileOutput.trimEnd()}`)
+      if (stdout) parts.push(stdout.trimEnd())
+      if (stderr) parts.push(`> stderr:\n${stderr.trimEnd()}`)
+      if (parts.length === 0) parts.push('(no output)')
+      parts.push(`\n> ${status}${time ? ` — ${time}s` : ''}${memory ? `, ${memory} KB` : ''}`)
+
+      setOutput(parts.join('\n\n'))
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      setOutput(`> Error: ${msg ?? 'Failed to run code — check your connection and try again.'}`)
+    } finally {
+      setIsRunning(false)
+    }
   }
 
   const reset = () => {

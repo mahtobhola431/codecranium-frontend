@@ -88,7 +88,7 @@ export default function InstructorCoursesPage() {
                   <span>★ {course.rating.toFixed(1)}</span>
                   <span>({course.reviewCount.toLocaleString()} reviews)</span>
                   <span>·</span>
-                  <span>{course.price === 0 ? 'Free' : `$${course.price}`}</span>
+                  <span>{course.price === 0 ? 'Free' : `₹${course.price}`}</span>
                 </div>
               </div>
 

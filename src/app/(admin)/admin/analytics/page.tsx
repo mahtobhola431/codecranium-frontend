@@ -97,9 +97,9 @@ export default function AdminAnalyticsPage() {
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         {[
-          { label: 'Total revenue (12 mo)', value: `$${(totalRevenue / 1000).toFixed(1)}k`, delta: '' },
+          { label: 'Total revenue (12 mo)', value: `₹${(totalRevenue / 1000).toFixed(1)}k`, delta: '' },
           { label: 'New students (12 mo)', value: totalStudentsThisYear.toLocaleString(), delta: '' },
-          { label: 'Avg monthly revenue', value: `$${avgMonthlyRevenue.toLocaleString()}`, delta: '' },
+          { label: 'Avg monthly revenue', value: `₹${avgMonthlyRevenue.toLocaleString()}`, delta: '' },
           { label: 'Active subscriptions', value: (stats?.activeSubscriptions ?? 0).toLocaleString(), delta: '' },
         ].map((kpi) => (
           <div key={kpi.label} className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
@@ -142,7 +142,7 @@ export default function AdminAnalyticsPage() {
                   <tr>
                     {monthly.map((m) => (
                       <td key={m.month} className="text-center py-1 px-1 whitespace-nowrap">
-                        {metric === 'revenue' ? `$${(m.revenue / 1000).toFixed(1)}k` : m.students}
+                        {metric === 'revenue' ? `₹${(m.revenue / 1000).toFixed(1)}k` : m.students}
                       </td>
                     ))}
                   </tr>
@@ -189,7 +189,7 @@ export default function AdminAnalyticsPage() {
               { label: 'Published courses', value: (stats?.publishedCourses ?? 0).toLocaleString() },
               { label: 'New signups this month', value: (stats?.newSignupsThisMonth ?? 0).toLocaleString() },
               { label: 'Avg course rating', value: stats?.avgRating ? `★ ${stats.avgRating}` : '—' },
-              { label: 'Total platform revenue', value: `$${(stats?.totalRevenue ?? 0).toLocaleString()}` },
+              { label: 'Total platform revenue', value: `₹${(stats?.totalRevenue ?? 0).toLocaleString()}` },
             ].map((row) => (
               <div key={row.label} className="flex items-center justify-between py-2 border-b border-zinc-800/60 last:border-0">
                 <span className="text-xs text-zinc-500">{row.label}</span>

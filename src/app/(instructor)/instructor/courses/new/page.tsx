@@ -172,7 +172,7 @@ export default function NewCoursePage() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Price (USD) — enter 0 for free</label>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Price (INR) — enter 0 for free</label>
               <input type="number" min={0} value={form.price} onChange={(e) => set('price', e.target.value)} className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-200 focus:outline-none" />
             </div>
 
@@ -301,7 +301,7 @@ export default function NewCoursePage() {
                 { label: 'Title', value: form.title || '—' },
                 { label: 'Category', value: CATEGORY_LABELS[form.category as keyof typeof CATEGORY_LABELS] },
                 { label: 'Difficulty', value: DIFFICULTY_LABELS[form.difficulty as keyof typeof DIFFICULTY_LABELS] },
-                { label: 'Price', value: form.price === '0' ? 'Free' : `$${form.price}` },
+                { label: 'Price', value: form.price === '0' ? 'Free' : `₹${form.price}` },
                 { label: 'Sections', value: String(sections.length) },
                 { label: 'Total lessons', value: String(sections.reduce((a, s) => a + s.lessons.length, 0)) },
               ].map((row) => (

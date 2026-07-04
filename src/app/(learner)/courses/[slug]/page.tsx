@@ -151,7 +151,7 @@ export default async function CourseDetailPage(props: {
 
             <div className="mb-4">
               <span className="text-3xl font-bold text-zinc-50">
-                {course.price === 0 ? 'Free' : `$${course.price}`}
+                {course.price === 0 ? 'Free' : `₹${course.price}`}
               </span>
             </div>
 

@@ -130,7 +130,7 @@ export default function InstructorAnalyticsPage() {
                       <span>·</span>
                       <span>★ {course.rating.toFixed(1)} ({course.reviewCount.toLocaleString()})</span>
                       <span>·</span>
-                      <span>{course.price === 0 ? 'Free' : `$${course.price}`}</span>
+                      <span>{course.price === 0 ? 'Free' : `₹${course.price}`}</span>
                     </div>
                   </div>
                 </div>
