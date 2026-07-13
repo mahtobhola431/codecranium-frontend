@@ -7,7 +7,7 @@ import { useAuthStore } from '@/store/authStore'
 const NAV_LINKS = [
   { label: 'Courses', href: '/courses' },
   { label: 'Learning Paths', href: '/learning-paths' },
-  { label: 'Pricing', href: '/pricing' },
+
 ]
 
 export default function Navbar() {

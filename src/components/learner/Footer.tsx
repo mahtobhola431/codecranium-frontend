@@ -4,7 +4,7 @@ const LINKS = {
   Learn: [
     { label: 'All Courses', href: '/courses' },
     { label: 'Learning Paths', href: '/learning-paths' },
-    { label: 'Pricing', href: '/pricing' },
+
     { label: 'Search', href: '/search' },
   ],
   Company: [

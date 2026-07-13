@@ -11,8 +11,8 @@ export const metadata: Metadata = {
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1'
 
 const STATS = [
-  { value: '50,000+', label: 'Active learners' },
-  { value: '200+', label: 'Courses & lessons' },
+  { value: '10+', label: 'Active learners' },
+  { value: '10+', label: 'Courses & lessons' },
   { value: '8', label: 'Languages' },
   { value: '60%', label: 'Avg completion rate' },
 ]
